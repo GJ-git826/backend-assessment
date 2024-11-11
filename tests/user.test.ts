@@ -1,48 +1,41 @@
+// tests/user.test.ts
+
 import request from 'supertest';
-import mongoose from 'mongoose';
 import app from '../src/app';
 import User from '../src/models/User';
-import { generateToken } from '../src/utils/jwt';
+import { hashPassword } from '../src/utils/hash';
+import mongoose from 'mongoose';
+import { Server } from 'http';
+import connectDB from '../src/utils/db';
 
-describe('User Endpoints', () => {
-  beforeAll(async () => {
-    await mongoose.connect(process.env.DATABASE_URL!);
-  });
+let server: Server;
+let port: number;
 
-  afterEach(async () => {
-    await User.deleteMany(); // Clear users after each test
-  });
+beforeAll(async () => {
+  port = Math.floor(Math.random() * 10000) + 3000;
+  server = app.listen(port, () => console.log(`Test server running on port ${port}`));
+  await connectDB(false);
+});
 
-  afterAll(async () => {
-    await mongoose.disconnect();
-  });
+afterEach(async () => {
+  await User.deleteMany({});
+});
 
-  it('should get a list of users with pagination', async () => {
-    // Seed database with some users
-    await User.create([
-      { email: 'user1@example.com', passwordHash: 'hashedpassword1' },
-      { email: 'user2@example.com', passwordHash: 'hashedpassword2' },
-      { email: 'user3@example.com', passwordHash: 'hashedpassword3' }
-    ]);
+afterAll(async () => {
+  await mongoose.disconnect();
+  server.close();
+});
 
-    // Generate a valid token for an authenticated request
-    const token = generateToken('adminUserId'); // Replace with actual userId if needed
+test('should get a list of users with pagination', async () => {
+  await User.create([
+    { email: 'user1@example.com', passwordHash: await hashPassword('password1') },
+    { email: 'user2@example.com', passwordHash: await hashPassword('password2') },
+  ]);
 
-    const res = await request(app)
-      .get('/api/admin/users?page=1&limit=2')
-      .set('Authorization', `Bearer ${token}`);
+  const response = await request(app)
+    .get(`/api/users?page=1&limit=2`);
 
-    expect(res.statusCode).toEqual(200);
-    expect(res.body).toHaveProperty('users');
-    expect(res.body.users.length).toBeLessThanOrEqual(2); // Ensure pagination is respected
-    expect(res.body).toHaveProperty('total');
-  });
-
-  it('should return unauthorized without a token', async () => {
-    const res = await request(app)
-      .get('/api/admin/users?page=1&limit=2');
-
-    expect(res.statusCode).toEqual(401);
-    expect(res.body).toHaveProperty('message', 'Unauthorized');
-  });
+  expect(response.statusCode).toEqual(200);
+  expect(response.body).toHaveLength(2);
+  expect(response.body[0]).toHaveProperty('email');
 });

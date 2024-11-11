@@ -1,12 +1,16 @@
+// src/controllers/userController.ts
+
 import { Request, Response } from 'express';
-import { getAllUsers } from '../services/userService';
+import UserService from '../services/userService';
 
 export const listUsers = async (req: Request, res: Response) => {
-  const { page = 1, limit = 10 } = req.query; // Default to page 1 and limit 10
   try {
-    const users = await getAllUsers(Number(page), Number(limit));
-    res.json(users);
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    const users = await UserService.getUsers({ page, limit });
+    res.status(200).json(users);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Error fetching users', error });
   }
 };

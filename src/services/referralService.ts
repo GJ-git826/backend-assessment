@@ -1,4 +1,4 @@
-import User from '../models/User';
+import User, { IUser } from '../models/User';
 import { hashPassword } from '../utils/hash';
 
 // Helper function to create a unique referral code
@@ -16,17 +16,17 @@ export const generateReferralCode = async (userId: string): Promise<string> => {
 };
 
 // Register a new user using a referral code
-export const registerWithReferral = async (email: string, password: string, referralCode?: string) => {
+export const registerWithReferral = async (email: string, password: string, referralCode: string) => {
+  const referredByUser = await User.findOne({ referralCode });
+  if(!referredByUser) {
+    throw new Error('Invalid referral code');
+  }
   const user = new User({
     email,
     passwordHash: await hashPassword(password),
-    referredBy: referralCode ? await getReferredByUserId(referralCode) : undefined,
+    referredBy: referredByUser._id,
   });
-  return await user.save();
-};
 
-// Find the user ID of the user who owns a given referral code
-const getReferredByUserId = async (referralCode: string): Promise<string | null> => {
-  const user = await User.findOne({ referralCode });
-  return user ? user._id.toString() : null;
-};
+  await user.save();
+  return user;
+}
